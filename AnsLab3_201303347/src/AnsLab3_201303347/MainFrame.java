@@ -5,10 +5,15 @@
  */
 package AnsLab3_201303347;
 
-import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,10 +21,15 @@ import java.util.Hashtable;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import org.knowm.xchart.XChartPanel;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -284,6 +294,7 @@ public class MainFrame extends javax.swing.JFrame {
         initComponents();
 
         Hashtable labelTable = new Hashtable();
+        cmbSlideLength.setSelectedIndex(8);
         labelTable.put(new Integer(5), new JLabel("0.5"));
         labelTable.put(new Integer(10), new JLabel("1.0"));
         labelTable.put(new Integer(15), new JLabel("1.5"));
@@ -478,8 +489,23 @@ public class MainFrame extends javax.swing.JFrame {
 
     private void btnGeneratePlotActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnGeneratePlotActionPerformed
         readInputForSequences(txtarInput.getText());
-        getAverages(Integer.parseInt(cmbSlideLength.getSelectedItem().toString()), cmbScale.getSelectedIndex());
-        displayPlot(sldThreshold.getValue(), Integer.parseInt(cmbSlideLength.getSelectedItem().toString()));
+        boolean execute = true;
+        execute = true;
+        
+        for (int i = 0; i < sequences.size(); i++) {
+            if(sequences.get(i).sequence.size() < Integer.parseInt(cmbSlideLength.getSelectedItem().toString())) {
+                execute = false;
+                break;
+            }
+        }
+        
+        if(execute == true) {
+            getAverages(Integer.parseInt(cmbSlideLength.getSelectedItem().toString()), cmbScale.getSelectedIndex());
+            displayPlot(sldThreshold.getValue(), Integer.parseInt(cmbSlideLength.getSelectedItem().toString()));
+        }
+        else {
+            JOptionPane.showMessageDialog(null, "Input cannot be smaller than sliding window length");
+        }
     }//GEN-LAST:event_btnGeneratePlotActionPerformed
 
     private void btnResetActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnResetActionPerformed
@@ -567,7 +593,7 @@ public class MainFrame extends javax.swing.JFrame {
             double[] thresholdXData = new double[sequences.get(i).getSequence().size()];
             double[] thresholdYData = new double[thresholdXData.length];
             double[] hydrophobicYData;
-            double max = 0;
+            double max = -99999;
 
             for (int j = (int) sequences.get(i).positions[0]; j < thresholdXData.length; j++) {
                 thresholdXData[j] = j;
@@ -576,7 +602,7 @@ public class MainFrame extends javax.swing.JFrame {
             Arrays.fill(thresholdYData, threshold);
 
             for (int j = 0; j < sequences.get(i).averages.length; j++) {
-                if (sequences.get(i).averages[j] >= threshold) {
+                if (sequences.get(i).averages[j] > threshold) {
                     if (sequences.get(i).averages[j] > max) {
                         max = sequences.get(i).averages[j] + 0.5;
                     }
@@ -609,17 +635,17 @@ public class MainFrame extends javax.swing.JFrame {
 
             hydrophobicIndies.removeAll(hydrophobicIndies);
 
-            charts.add(new XYChartBuilder().width(1000).height(400).title(sequences.get(i).getDescription()).xAxisTitle("Index Position").yAxisTitle("Average Hydrophobicity").build());
+            charts.add(new XYChartBuilder().width(800).height(400).title(sequences.get(i).getDescription()).xAxisTitle("Index Position").yAxisTitle("Average Hydrophobicity").build());
 
             charts.get(i).addSeries("Hydrophobicity", sequences.get(i).positions, sequences.get(i).averages);
-            charts.get(i).addSeries("Hydrophobicity Threshold", thresholdXData, thresholdYData);
+            charts.get(i).addSeries("Hydrophobicity Threshold", thresholdXData, thresholdYData).setMarker(new org.knowm.xchart.style.markers.None());
 
             for (int j = 0; j < hydrophobicSequences.size(); j++) {
-                hydrophobicYData = new double[hydrophobicSequences.get(j).length];
+                hydrophobicYData = new double[2];
 
                 Arrays.fill(hydrophobicYData, max);
 
-                charts.get(i).addSeries("Hydrophobic" + (j + 1), DoubleTodouble(hydrophobicSequences.get(j)), hydrophobicYData);
+                charts.get(i).addSeries("Hydrophobic" + (j + 1), DoubleTodouble(hydrophobicSequences.get(j)), hydrophobicYData).setMarker(new org.knowm.xchart.style.markers.None());
             }
 
         }
@@ -632,12 +658,40 @@ public class MainFrame extends javax.swing.JFrame {
                 JFrame frame = new JFrame("Hydrophobicity Charts");
                 frame.setLayout(new GridLayout(1, 0));
                 frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                JScrollPane scroll = new JScrollPane();
+                JPanel mainPanel = new JPanel();
+                
+                mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+                scroll.setVisible(true);
 
                 // chart
-                JPanel chartPanel;
                 for (int i = 0; i < charts.size(); i++) {
-                    frame.add(new XChartPanel<XYChart>(charts.get(i)));
+                    JPanel chartPanel = new JPanel();
+                    JPanel subPanel = new JPanel();
+                    JButton save = new JButton("Download");
+                    
+                    chartPanel.setLayout(new BoxLayout(chartPanel, BoxLayout.Y_AXIS));
+                    chartPanel.add(new XChartPanel<XYChart>(charts.get(i)));
+                    
+                    save.setVisible(true);
+                    
+                    subPanel.setLayout(new BoxLayout(subPanel, BoxLayout.Y_AXIS));
+                    subPanel.add(chartPanel);
+                    subPanel.add(save);
+                    
+                    scroll = new JScrollPane(mainPanel);
+                    
+                    save.addActionListener(new ActionListener() {
+                        public void actionPerformed(ActionEvent e) {
+                            savePicture(chartPanel);
+                        }
+                    });
+                    
+                    
+                    mainPanel.add(subPanel);
                 }
+                
+                frame.add(scroll);
 
                 // Display the window.
                 frame.pack();
@@ -645,13 +699,38 @@ public class MainFrame extends javax.swing.JFrame {
             }
         });
     }
+    
+    public static void savePicture(Component panel) {
+        int w = panel.getWidth();
+        int h = panel.getHeight();
+        BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2 = bi.createGraphics();
+        panel.paint(g2);
+        g2.dispose();
+        try {
+            JFileChooser flechFasta = new JFileChooser();
+            flechFasta.setCurrentDirectory(new java.io.File("."));
+            flechFasta.setDialogTitle("Save as Image");
+            
+
+            if (flechFasta.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                String filename = flechFasta.getSelectedFile().getCanonicalPath();
+                System.out.println("file: " + filename);
+                ImageIO.write(bi, "jpg", new File(filename + ".jpg"));
+//                frame.hide();
+            } else {
+                System.out.println("No Selection ");
+            }
+        } catch (IOException ioe) {
+            System.out.println("write: " + ioe.getMessage());
+        }
+    }
 
     public static double[] DoubleTodouble(Double[] doubleClass) {
-        double[] doublePrimitive = new double[doubleClass.length];
-
-        for (int k = 0; k < doublePrimitive.length; k++) {
-            doublePrimitive[k] = doubleClass[k].doubleValue();
-        }
+        double[] doublePrimitive = new double[] {doubleClass[0], doubleClass[doubleClass.length - 1]};
+//        for (int k = 0; k < doublePrimitive.length; k++) {
+//            doublePrimitive[k] = doubleClass[k].doubleValue();
+//        }
 
         return doublePrimitive;
     }
