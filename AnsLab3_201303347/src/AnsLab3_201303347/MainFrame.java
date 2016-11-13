@@ -11,8 +11,10 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -282,7 +284,7 @@ class Amino_Acid_Sequence {
 }
 
 public class MainFrame extends javax.swing.JFrame {
-
+    static ArrayList<Double[]> data = new ArrayList<>();
     static HashMap<String, Amino_Acid> hydrophobicity = new HashMap<>();
     static ArrayList<Amino_Acid_Sequence> sequences = new ArrayList<>();
 
@@ -313,6 +315,7 @@ public class MainFrame extends javax.swing.JFrame {
     private void initComponents() {
 
         flechFasta = new javax.swing.JFileChooser();
+        flechSave = new javax.swing.JFileChooser();
         jPanel1 = new javax.swing.JPanel();
         sldThreshold = new javax.swing.JSlider();
         jScrollPane1 = new javax.swing.JScrollPane();
@@ -590,6 +593,7 @@ public class MainFrame extends javax.swing.JFrame {
         for (int i = 0; i < sequences.size(); i++) {
             ArrayList<Double[]> hydrophobicSequences = new ArrayList<>();
             ArrayList<Double> hydrophobicIndies = new ArrayList<>();
+            ArrayList<Double[]> dataList = new ArrayList<>();
             double[] thresholdXData = new double[sequences.get(i).getSequence().size()];
             double[] thresholdYData = new double[thresholdXData.length];
             double[] hydrophobicYData;
@@ -615,7 +619,8 @@ public class MainFrame extends javax.swing.JFrame {
                         for (int k = 0; k < hydrophobicArray.length; k++) {
                             hydrophobicArray[k] = hydrophobicIndies.get(k);
                         }
-
+                        
+                        dataList.add(new Double[] {hydrophobicArray[0], hydrophobicArray[hydrophobicArray.length - 1]});
                         hydrophobicSequences.add(hydrophobicArray);
                     }
 
@@ -635,19 +640,19 @@ public class MainFrame extends javax.swing.JFrame {
 
             hydrophobicIndies.removeAll(hydrophobicIndies);
 
-            charts.add(new XYChartBuilder().width(800).height(400).title(sequences.get(i).getDescription()).xAxisTitle("Index Position").yAxisTitle("Average Hydrophobicity").build());
+            charts.add(new XYChartBuilder().width(800).height(400).title(sequences.get(i).getDescription().substring(sequences.get(i).getDescription().indexOf("|") + 1, sequences.get(i).getDescription().lastIndexOf("|"))).xAxisTitle("Index Position").yAxisTitle("Average Hydrophobicity").build());
 
             charts.get(i).addSeries("Hydrophobicity", sequences.get(i).positions, sequences.get(i).averages);
             charts.get(i).addSeries("Hydrophobicity Threshold", thresholdXData, thresholdYData).setMarker(new org.knowm.xchart.style.markers.None());
+            
+            hydrophobicYData = new double[2];
+
+            Arrays.fill(hydrophobicYData, max);
 
             for (int j = 0; j < hydrophobicSequences.size(); j++) {
-                hydrophobicYData = new double[2];
-
-                Arrays.fill(hydrophobicYData, max);
-
-                charts.get(i).addSeries("Hydrophobic" + (j + 1), DoubleTodouble(hydrophobicSequences.get(j)), hydrophobicYData).setMarker(new org.knowm.xchart.style.markers.None());
+                charts.get(i).addSeries(hydrophobicSequences.get(j)[0].intValue() + " - " + hydrophobicSequences.get(j)[hydrophobicSequences.get(j).length - 1].intValue(), DoubleTodouble(hydrophobicSequences.get(j)), hydrophobicYData).setMarker(new org.knowm.xchart.style.markers.None());
+                data.add(new Double[]{hydrophobicSequences.get(j)[0], hydrophobicSequences.get(j)[hydrophobicSequences.get(j).length - 1]});
             }
-
         }
 
         javax.swing.SwingUtilities.invokeLater(new Runnable() {
@@ -660,15 +665,18 @@ public class MainFrame extends javax.swing.JFrame {
                 frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                 JScrollPane scroll = new JScrollPane();
                 JPanel mainPanel = new JPanel();
+                JButton export = new JButton("Export");
                 
                 mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
                 scroll.setVisible(true);
+                export.setVisible(true);
 
                 // chart
                 for (int i = 0; i < charts.size(); i++) {
                     JPanel chartPanel = new JPanel();
                     JPanel subPanel = new JPanel();
                     JButton save = new JButton("Download");
+                    
                     
                     chartPanel.setLayout(new BoxLayout(chartPanel, BoxLayout.Y_AXIS));
                     chartPanel.add(new XChartPanel<XYChart>(charts.get(i)));
@@ -687,9 +695,16 @@ public class MainFrame extends javax.swing.JFrame {
                         }
                     });
                     
+                    export.addActionListener(new ActionListener() {
+                        public void actionPerformed(ActionEvent e) {
+                            export(data);
+                        }
+                    });
+                    
                     
                     mainPanel.add(subPanel);
                 }
+                mainPanel.add(export);
                 
                 frame.add(scroll);
 
@@ -698,6 +713,54 @@ public class MainFrame extends javax.swing.JFrame {
                 frame.setVisible(true);
             }
         });
+    }
+    
+    public static void export(ArrayList<Double[]> data) {
+        
+        try {
+            JFileChooser flechFasta = new JFileChooser();
+            flechFasta.setCurrentDirectory(new java.io.File("."));
+            flechFasta.setDialogTitle("Save as text");
+            
+            if (flechFasta.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                String filename = flechFasta.getSelectedFile().getCanonicalPath();
+                System.out.println("file: " + filename);
+                FileWriter write = new FileWriter(filename);
+            
+                BufferedWriter writer = new BufferedWriter(write);
+                
+                
+                for (int i = 0; i < sequences.size(); i++) {
+                    writer.write(sequences.get(i).getDescription().substring(sequences.get(i).getDescription().indexOf("|") + 1, sequences.get(i).getDescription().lastIndexOf("|")));
+                    writer.write("   #" + data.size() + "\t");
+                    for (int j = 0; j < data.size(); j++) {
+                        writer.write(data.get(j)[0].intValue() + "\t\t\t\t\t" + data.get(j)[1].intValue() + "\t\t\t\t\t");
+                    }
+                    writer.newLine();
+                }
+                
+                writer.close();
+            } else {
+                System.out.println("No Selection ");
+            }
+        } catch (IOException ioe) {
+            System.out.println("write: " + ioe.getMessage());
+        }
+//        flechSave.showSaveDialog(jScrollPane2);
+//        File saveFile = flechSave.getSelectedFile();
+//        String filename = saveFile.getAbsolutePath();
+//        
+//        try {
+//            FileWriter write = new FileWriter(filename);
+//            
+//            BufferedWriter writer = new BufferedWriter(write);
+//            
+//            writer.write(txtarDecoded.getText());
+//            
+//            writer.close();
+//        } catch (IOException ex) {
+//            Logger.getLogger(dnaprocessing.class.getName()).log(Level.SEVERE, null, ex);
+//        }
     }
     
     public static void savePicture(Component panel) {
@@ -779,6 +842,7 @@ public class MainFrame extends javax.swing.JFrame {
     private javax.swing.JComboBox<String> cmbScale;
     private javax.swing.JComboBox<String> cmbSlideLength;
     private javax.swing.JFileChooser flechFasta;
+    private javax.swing.JFileChooser flechSave;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
