@@ -222,10 +222,12 @@ class Amino_Acid_Sequence {
     double[] averages;
     double[] positions;
     private String description;
+    int segments;
 
     public Amino_Acid_Sequence() {
         this.description = "";
         this.sequence = new ArrayList<>();
+        this.segments = 0;
     }
 
     public Amino_Acid_Sequence(String sequenceString) {
@@ -503,8 +505,14 @@ public class MainFrame extends javax.swing.JFrame {
         }
         
         if(execute == true) {
-            getAverages(Integer.parseInt(cmbSlideLength.getSelectedItem().toString()), cmbScale.getSelectedIndex());
-            displayPlot(sldThreshold.getValue(), Integer.parseInt(cmbSlideLength.getSelectedItem().toString()));
+            if (sequences.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "No valid sequence in input");
+            }
+            
+            else {
+                getAverages(Integer.parseInt(cmbSlideLength.getSelectedItem().toString()), cmbScale.getSelectedIndex());
+                displayPlot(sldThreshold.getValue(), Integer.parseInt(cmbSlideLength.getSelectedItem().toString()));
+            }
         }
         else {
             JOptionPane.showMessageDialog(null, "Input cannot be smaller than sliding window length");
@@ -533,8 +541,11 @@ public class MainFrame extends javax.swing.JFrame {
     }
 
     public static void readInputForSequences(String input) {
+        ArrayList<Amino_Acid_Sequence> removed = new ArrayList<>();
         Scanner scan = new Scanner(input);
-        String line, sequenceString = "";
+        String line, sequenceString = "", removedString = "";
+        int ignored = 0;
+        boolean ignoredBool = false;
 
         while (scan.hasNextLine()) {
 
@@ -546,18 +557,74 @@ public class MainFrame extends javax.swing.JFrame {
                     sequences.add(new Amino_Acid_Sequence());
                     sequences.get(sequences.size() - 1).setDescription(line);
                 } else {
-                    sequenceString += line;
+                    if(!sequences.isEmpty()){
+                        if(sequences.get(sequences.size() - 1).getSequenceString().isEmpty()) {
+                            sequenceString += line;
+                        }
+                        else {
+                            ignoredBool = true;
+                        }
+                    }
+                    else
+                        ignoredBool = true;
                 }
             } else {
-                sequences.get(sequences.size() - 1).setSequence(sequenceString.toUpperCase());
+                if (ignoredBool == true) {
+                    ignored++;
+                    ignoredBool = false;
+                }
+
+                if(!sequences.isEmpty()) {
+                    if (sequenceString.contains("B") ||
+                        sequenceString.contains("J") ||
+                        sequenceString.contains("O") ||
+                        sequenceString.contains("U") ||
+                        sequenceString.contains("X") ||
+                        sequenceString.contains("Z")) {
+                            
+                        removed.add(sequences.get(sequences.size() - 1));
+                        sequences.remove(sequences.get(sequences.size() - 1));
+                    }
+                    
+                    else {
+                        sequences.get(sequences.size() - 1).setSequence(sequenceString.toUpperCase());
+                    }
+                }
                 sequenceString = "";
             }
         }
 
         if (!sequenceString.isEmpty()) {
-            sequences.get(sequences.size() - 1).setSequence(sequenceString.toUpperCase());
+            if (sequenceString.contains("B") ||
+                sequenceString.contains("J") ||
+                sequenceString.contains("O") ||
+                sequenceString.contains("U") ||
+                sequenceString.contains("X") ||
+                sequenceString.contains("Z")) {
+
+                removed.add(sequences.get(sequences.size() - 1));
+                sequences.remove(sequences.get(sequences.size() - 1));
+            }
+
+            else {
+                sequences.get(sequences.size() - 1).setSequence(sequenceString.toUpperCase());
+            }
             sequenceString = "";
+        }       
+        
+        if (ignoredBool == true) {
+            ignored++;
+            ignoredBool = false;
         }
+        
+        for (int i = 0; i < removed.size(); i++) {
+            removedString += removed.get(i).getDescription().substring(removed.get(i).getDescription().indexOf("|") + 1, removed.get(i).getDescription().lastIndexOf("|")) + "\n";
+        }
+        
+        if(!removed.isEmpty())
+            JOptionPane.showMessageDialog(null, "Sequence(s):\n" + removedString + "\nwere removed because they contain invalid Amino Acid symbols");
+        if(ignored > 0)
+            JOptionPane.showMessageDialog(null, ignored + " input(s) were ignored because they were not valid FASTA formats");
     }
 
     public static void getAverages(int slidingWindow, int scaleUsed) {
@@ -622,6 +689,7 @@ public class MainFrame extends javax.swing.JFrame {
                         
                         dataList.add(new Double[] {hydrophobicArray[0], hydrophobicArray[hydrophobicArray.length - 1]});
                         hydrophobicSequences.add(hydrophobicArray);
+                        sequences.get(i).segments++;
                     }
 
                     hydrophobicIndies.removeAll(hydrophobicIndies);
@@ -636,6 +704,7 @@ public class MainFrame extends javax.swing.JFrame {
                 }
 
                 hydrophobicSequences.add(hydrophobicArray);
+                sequences.get(i).segments++;
             }
 
             hydrophobicIndies.removeAll(hydrophobicIndies);
@@ -695,15 +764,14 @@ public class MainFrame extends javax.swing.JFrame {
                         }
                     });
                     
-                    export.addActionListener(new ActionListener() {
-                        public void actionPerformed(ActionEvent e) {
-                            export(data);
-                        }
-                    });
-                    
-                    
                     mainPanel.add(subPanel);
                 }
+                
+                export.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        export(data);
+                    }
+                });
                 mainPanel.add(export);
                 
                 frame.add(scroll);
@@ -729,12 +797,12 @@ public class MainFrame extends javax.swing.JFrame {
             
                 BufferedWriter writer = new BufferedWriter(write);
                 
-                
+                int j = 0;
                 for (int i = 0; i < sequences.size(); i++) {
                     writer.write(sequences.get(i).getDescription().substring(sequences.get(i).getDescription().indexOf("|") + 1, sequences.get(i).getDescription().lastIndexOf("|")));
-                    writer.write("   #" + data.size() + "\t");
-                    for (int j = 0; j < data.size(); j++) {
-                        writer.write(data.get(j)[0].intValue() + "\t\t\t\t\t" + data.get(j)[1].intValue() + "\t\t\t\t\t");
+                    writer.write("   #" + sequences.get(i).segments + "\t\t\t");
+                    for (int k = 0; k < sequences.get(i).segments; j++, k++) {
+                        writer.write(data.get(j)[0].intValue() + "\t\t\t\t" + data.get(j)[1].intValue() + "\t\t\t\t\t");
                     }
                     writer.newLine();
                 }
